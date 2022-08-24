@@ -6,6 +6,7 @@
 -define(DEFAULT_PROTO_DIR, "proto").
 -define(DEFAULT_OUT_ERL_DIR, "src").
 -define(DEFAULT_OUT_HRL_DIR, "include").
+-define(DEFAULT_MODULE_NAME_SUFFIX, "_pb").
 
 %% ===================================================================
 %% Public API
@@ -68,9 +69,9 @@ compile(AppInfo, State) ->
 
 -spec clean(rebar_app_info:t(),
             rebar_state:t()) -> ok.
-clean(AppInfo, State) ->
-    AppDir = rebar_app_info:dir(AppInfo),
-    DepsDir = rebar_dir:deps_dir(State),
+clean(AppInfo, _State) ->
+%%    AppDir = rebar_app_info:dir(AppInfo),
+%%    DepsDir = rebar_dir:deps_dir(State),
     AppOutDir = rebar_app_info:out_dir(AppInfo),
     Opts = rebar_app_info:opts(AppInfo),
     {ok, GpbOpts} = dict:find(gpb_opts, Opts),
@@ -80,19 +81,35 @@ clean(AppInfo, State) ->
     TargetHrlDir = filename:join([AppOutDir,
                                   proplists:get_value(o_hrl, GpbOpts,
                                                       ?DEFAULT_OUT_HRL_DIR)]),
-    ProtoFiles = find_proto_files(AppDir, DepsDir, GpbOpts),
-    rebar_api:debug("found proto files: ~p", [ProtoFiles]),
-    GeneratedRootFiles =
-        lists:usort(
-          [filename:rootname(filename:basename(get_target(ProtoFile, GpbOpts)))
-           || ProtoFile <- ProtoFiles]),
-    GeneratedErlFiles = [filename:join([TargetErlDir, F ++ ".erl"]) ||
-                            F <- GeneratedRootFiles],
-    GeneratedHrlFiles = [filename:join([TargetHrlDir, F ++ ".hrl"]) ||
-                            F <- GeneratedRootFiles],
-    rebar_api:debug("deleting [~p, ~p]",
-                    [GeneratedErlFiles, GeneratedHrlFiles]),
-    rebar_file_utils:delete_each(GeneratedErlFiles ++ GeneratedHrlFiles).
+
+    _ModuleNameSuffix = proplists:get_value(module_name_suffix, GpbOpts, ?DEFAULT_MODULE_NAME_SUFFIX),
+
+    rebar_api:debug("making sure that target erl dir ~p exists", [TargetErlDir]),
+    rebar_api:debug("making sure that target hrl dir ~p exists", [TargetHrlDir]),
+
+    ErlFiles = rebar_utils:find_files(TargetErlDir, ".*" ++ _ModuleNameSuffix ++ "\.erl"),
+    HrlFiles = rebar_utils:find_files(TargetHrlDir, ".*" ++ _ModuleNameSuffix ++ "\.hrl"),
+    rebar_api:debug("found erl files: ~p", [ErlFiles]),
+    rebar_api:debug("found hrl files: ~p", [HrlFiles]),
+
+    rebar_api:debug("deleting [~p, ~p]", [ErlFiles, HrlFiles]),
+
+    rebar_file_utils:delete_each(ErlFiles ++ HrlFiles).
+%%
+%%    ProtoFiles = find_proto_files(AppDir, DepsDir, GpbOpts),
+%%    rebar_api:debug("found proto files: ~p", [ProtoFiles]),
+%%    GeneratedRootFiles =
+%%        lists:usort(
+%%          [filename:rootname(filename:basename(get_target(ProtoFile, GpbOpts)))
+%%           || ProtoFile <- ProtoFiles]),
+%%    rebar_api:debug("found proto GeneratedRootFiles: ~p", [GeneratedRootFiles]),
+%%    GeneratedErlFiles = [filename:join([TargetErlDir, F ++ ".erl"]) ||
+%%                            F <- GeneratedRootFiles],
+%%    GeneratedHrlFiles = [filename:join([TargetHrlDir, F ++ ".hrl"]) ||
+%%                            F <- GeneratedRootFiles],
+%%    rebar_api:debug("deleting [~p, ~p]",
+%%                    [GeneratedErlFiles, GeneratedHrlFiles]),
+%%    rebar_file_utils:delete_each(GeneratedErlFiles ++ GeneratedHrlFiles).
 
 %% ===================================================================
 %% Private API
@@ -241,17 +258,17 @@ remove_plugin_opts(Opts0, [OptToRemove | Rest]) ->
     Opts = lists:keydelete(OptToRemove, 1, Opts0),
     remove_plugin_opts(Opts, Rest).
 
-find_proto_files(AppDir, DepsDir, GpbOpts) ->
-    lists:foldl(fun({deps, SourceDir}, Acc) ->
-                    Acc ++ rebar_utils:find_files(
-                             filename:join(DepsDir, SourceDir),
-                                           ".*\.proto\$");
-                   (SourceDir, Acc) ->
-                    Acc ++ rebar_utils:find_files(
-                             filename:join(AppDir, SourceDir),
-                                           ".*\.proto\$")
-                end,
-                [], proplists:get_all_values(i, GpbOpts)).
+%%find_proto_files(AppDir, DepsDir, GpbOpts) ->
+%%    lists:foldl(fun({deps, SourceDir}, Acc) ->
+%%                    Acc ++ rebar_utils:find_files(
+%%                             filename:join(DepsDir, SourceDir),
+%%                                           ".*\.proto\$");
+%%                   (SourceDir, Acc) ->
+%%                    Acc ++ rebar_utils:find_files(
+%%                             filename:join(AppDir, SourceDir),
+%%                                           ".*\.proto\$")
+%%                end,
+%%                [], proplists:get_all_values(i, GpbOpts)).
 
 proto_include_paths(_AppDir, [], Opts) -> Opts;
 proto_include_paths(AppDir, [Proto | Protos], Opts) ->
